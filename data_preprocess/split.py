@@ -2,9 +2,9 @@ import pandas as pd
 
 def load_and_merge_datasets(train_path, valid_path, test_path):
 
-    train_df = pd.read_csv(train_path)
-    valid_df = pd.read_csv(valid_path)
-    test_df = pd.read_csv(test_path)
+    train_df = pd.read_csv(train_path)[:256]
+    valid_df = pd.read_csv(valid_path)[:32]
+    test_df = pd.read_csv(test_path)[:32]
     
     train_df['train'], train_df['valid'], train_df['test'] = 1, 0, 0
     valid_df['train'], valid_df['valid'], valid_df['test'] = 0, 1, 0
@@ -20,4 +20,4 @@ merged_df = load_and_merge_datasets(
     'internal_dataset/trans_new_test.csv'
 )
 
-merged_df.to_csv('internal_dataset/trans_new.csv', index=False)
+merged_df.to_csv('internal_dataset/trans_new_small.csv', index=False)

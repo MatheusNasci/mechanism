@@ -37,48 +37,44 @@ class MoleculeGenerationTask(tasks.Task, core.Configurable):
     def get_target(self, batch):
         """
         Extracts the target sequences (B column) from batch and applies EOS + padding.
-
-        Parameters:
-            batch (dict): Batch data containing input (A) and target (B) SMILES.
-        
-        Returns:
-            target (Tensor): Padded target sequences with EOS token.
         """
-        print("here")
-        target = batch["target"]["B"].token_ids  # 获取 `B` 列的 token_ids
-        size_ext = batch["target"]["B"].num_tokens  # 获取目标 `B` 的真实长度
-        eos = torch.ones(target.shape[0], dtype=torch.long, device=self.device) * self.model.eos_idx
+        graph = batch["target"]["B"] 
+        target = graph.node_feature 
+        
+        size_ext = graph.num_nodes
+        
+        if len(size_ext.shape) == 0:  
+            size_ext = size_ext.unsqueeze(0)
 
-        # **严格按照 `language_model.py` 方式扩展 `target`**
-        target, size_ext = functional._extend(target, size_ext, eos, torch.ones_like(size_ext))
+        if (size_ext == 0).any():
+            print("Warning: Some sequences have zero length!")
+
+        eos = torch.ones(graph.batch_size, dtype=torch.long, device=self.device) * self.model.eos_idx 
+
+        target, size_ext = functional._extend(target, size_ext, eos, torch.ones_like(size_ext))  
+
         target = functional.variadic_to_padded(target, size_ext, value=self.model.padding_idx)[0]
+
+        assert target.numel() > 0, "Error: target is empty after variadic_to_padded()!"
+
         return target
 
     def predict_and_target(self, batch, all_loss=None, metric=None):
         """
         Compute model predictions and target sequences for loss computation.
-
-        Parameters:
-            batch (dict): Batch data containing input and target SMILES.
-        
-        Returns:
-            pred (Tensor): Model predictions (logits).
-            target (Tensor): Target token indices for loss computation.
         """
-        # **严格按照 `language_model.py` 方式处理输入**
-        print(batch)
-        src = batch["input"].token_ids  # A列 SMILES token_ids
-        tgt = self.get_target(batch)  # B列 SMILES token_ids，追加 EOS
+        graph = batch["target"]["B"] 
+        
+        input = functional.variadic_to_padded(graph.node_feature, graph.num_nodes, value=self.model.padding_idx)[0]
+        
+        target = self.get_target(batch)  
 
-        src, src_size = functional.variadic_to_padded(src, value=self.model.padding_idx)
-        tgt, tgt_size = functional.variadic_to_padded(tgt, value=self.model.padding_idx)
-
-        output = self.model(graph=None, src=src, tgt=tgt, all_loss=all_loss, metric=metric)
+        output = self.model(graph, input, target, all_loss, metric) 
         pred = output["logits"]
 
-        mask = (tgt != self.model.padding_idx).view(-1)
+        mask = (target != self.model.padding_idx).view(-1)
         pred = pred.reshape(-1, pred.size(-1))[mask]
-        target = tgt.reshape(-1)[mask]
+        target = target.reshape(-1)[mask]
 
         return pred, target
 
@@ -194,7 +190,7 @@ class MoleculeGenerationTask(tasks.Task, core.Configurable):
         final_seqs = []
         for seq in sampled_seq:
             smi_seq = ''.join([self.model.id2token[aa] for aa in seq])
-            smi_seq = smi_seq.split(self.model.id2token[self.model.eos_idx])[0]  # 遇到 EOS 截断
+            smi_seq = smi_seq.split(self.model.id2token[self.model.eos_idx])[0]  
             final_seqs.append(smi_seq)
 
         return final_seqs

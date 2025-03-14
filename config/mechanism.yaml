@@ -1,1 +1,35 @@
-# 待添加
+output_dir: /home/user/students/gyt/major_product/output
+
+dataset:
+  class: MechanismDataset
+  path: /home/user/students/gyt/major_product/internal_dataset/trans_new_small.csv
+  target_fields: ["B"]
+  unit_feature: default
+  link_feature: default
+
+task:
+  class: MoleculeGenerationTask
+  model:
+    class: MoleculeTransformer
+    num_layers: 8
+    embed_dim: 512
+    ffn_embed_dim: 2048
+    attention_heads: 8
+    output_dim: 512
+    dropout: 0.1
+  criterion: ce
+  metric: ["acc"]
+  num_mlp_layer: 2
+
+metric: accuracy
+
+optimizer:
+  class: Adam
+  lr: 2.0e-4
+
+engine:
+  gpus: {{ gpus }}
+  batch_size: 32
+
+train:
+  num_epoch: 20
